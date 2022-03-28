@@ -10,7 +10,7 @@ kiwisolver
 matplotlib
 multiprocess
 numpy
-om @ git+https://github.com/guihcs/omatch@940902cf6738d2778e99342263c88557c4aa509f
+git+https://github.com/guihcs/omatch
 packaging
 pandas
 Pillow
