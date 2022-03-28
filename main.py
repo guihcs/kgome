@@ -1,5 +1,6 @@
 import copy
 import os
+import sys
 
 import pandas as pd
 from multiprocess import Process
@@ -505,7 +506,7 @@ class Matcher(Step):
         return res, {'vc1': vc1c, 'vc2': vc2c}
 
 
-def train_kf(ki, tri, tei):
+def train_kf(ki, tri, tei, base):
     train = list(map(lambda x: refs[x], tri))
     test = list(map(lambda x: refs[x], tei))
     datasets = list(map(lambda ps: MatchDataset(ps[0], ps[1], ps[2]), train))
@@ -520,7 +521,7 @@ def train_kf(ki, tri, tei):
 
     matcher = Matcher(tr.om, tr.wm, rang)
 
-    runner = Runner('conference', 'reference', matcher=matcher)
+    runner = Runner(base + 'conference', base + 'reference', matcher=matcher)
 
     for i in range(1):
 
@@ -532,15 +533,14 @@ def train_kf(ki, tri, tei):
         # eval_result(result, rang)
 
 if __name__ == '__main__':
-    refs = list(onts('conference', 'reference'))
-
-    q = pd.DataFrame([[1, 2, 3]], columns=['a', 'b', 'c'])
+    base = sys.argv[1]
+    refs = list(onts(base + 'conference', base + 'reference'))
 
     kf = KFold(n_splits=3)
 
     processes = []
     for ki, (tri, tei) in enumerate(kf.split(refs)):
-        p = Process(target=train_kf, args=(ki, tri, tei))
+        p = Process(target=train_kf, args=(ki, tri, tei, base))
         p.start()
         processes.append(p)
 
