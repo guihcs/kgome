@@ -389,7 +389,6 @@ class TrainOm:
                 mask2 = (torch.Tensor(ft2) > -1).float().view(-1, ml, 1)
                 pe1 = pos_encod(len(data), self.embedding_size)
 
-
                 for i, (e1, e2, s) in tqdm(enumerate(loader), total=len(loader), position=0, leave=True):
                     er = self.train_batch(e1, e2, s, i, i, ft1, ft2, data, mask1, mask2, pe1, i, loader.batch_size)
                     el += er
@@ -532,8 +531,11 @@ def train_kf(ki, tri, tei, base):
             result[ri].to_csv(f'rs_{ki}/result_{rang[ri]:.2f}.csv')
         # eval_result(result, rang)
 
+
 if __name__ == '__main__':
     base = sys.argv[1]
+    if not os.path.exists(base + 'conference'):
+        raise Exception(f'base ontologies not found in {base}conference')
     refs = list(onts(base + 'conference', base + 'reference'))
 
     kf = KFold(n_splits=3)
@@ -543,7 +545,6 @@ if __name__ == '__main__':
         p = Process(target=train_kf, args=(ki, tri, tei, base))
         p.start()
         processes.append(p)
-
 
     for p in processes:
         p.join()
