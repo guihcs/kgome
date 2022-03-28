@@ -389,7 +389,7 @@ class TrainOm:
                 mask2 = (torch.Tensor(ft2) > -1).float().view(-1, ml, 1)
                 pe1 = pos_encod(len(data), self.embedding_size)
 
-                for i, (e1, e2, s) in tqdm(enumerate(loader), total=len(loader), position=0, leave=True):
+                for i, (e1, e2, s) in enumerate(loader):
                     er = self.train_batch(e1, e2, s, i, i, ft1, ft2, data, mask1, mask2, pe1, i, loader.batch_size)
                     el += er
 
@@ -481,7 +481,7 @@ class Matcher(Step):
             res = [[] for r in self.rang]
             meta = []
             loader = DataLoader(entsv, batch_size=16)
-            for i, (x1, x2, e1, e2) in tqdm(enumerate(loader), position=0, leave=True, total=len(loader)):
+            for i, (x1, x2, e1, e2) in enumerate(loader):
 
                 nemb1 = self.om.gnn_pass(ft1, adj1, pdj1, i1)
                 nemb2 = self.om.gnn_pass(ft2, adj2, pdj2, i2)
@@ -508,7 +508,7 @@ class Matcher(Step):
 def train_kf(ki, tri, tei, base):
     train = list(map(lambda x: refs[x], tri))
     test = list(map(lambda x: refs[x], tei))
-    datasets = list(map(lambda ps: MatchDataset(ps[0], ps[1], ps[2]), train))
+    datasets = list(map(lambda ps: MatchDataset(ps[0], ps[1], ps[2], tb=600), train))
 
     tr = TrainOm(datasets)
     tr.train()
