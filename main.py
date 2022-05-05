@@ -294,16 +294,17 @@ class GNN(nn.Module):
         self.embedding_dim = embedding_dim
         self.pm = nn.Linear(2 * embedding_dim, embedding_dim)
         self.ft = nn.Linear(embedding_dim, embedding_dim)
+        self.tanh = nn.Tanh()
 
     def forward(self, features, adj, pdj, i):
         fpc = torch.cat((pdj, features.repeat(pdj.shape[0], 1, 1)), dim=2)
         fpc = self.pm(fpc)
-
-        ad = adj + torch.eye(adj.shape[0]) * i
+        fpc = self.tanh(fpc)
+        ad = adj + torch.eye(adj.shape[0])
 
         mf = ad.view(ad.shape[0], 1, ad.shape[1]) @ fpc
 
-        return mf.view(mf.shape[0], mf.shape[2])
+        return  mf.view(mf.shape[0], mf.shape[2]) + self.tanh(self.ft(features))
 
 
 class OntMatcher(nn.Module):
@@ -331,7 +332,8 @@ class OntMatcher(nn.Module):
 
     def forward(self, f, a, p, i, m):
         ft, p = self.build_ft(f, p, m)
-        return self.gnn_pass(ft, a, p, i)
+        g1 = self.gnn_pass(ft, a, p, i)
+        return g1
 
     def gnn_pass(self, ft, a, p, i):
         return self.gnn(ft, a, p, i)
@@ -356,11 +358,11 @@ class TrainOm:
             se = split_entity(e)
             self.split_map[e] = list(map(lambda x: self.wm[x], se))
 
-        self.embedding_size = 50
+        self.embedding_size = 200
         self.om = OntMatcher(len(jv), self.embedding_size, 1, 1)
         self.crit = nn.CosineEmbeddingLoss(margin=0.5)
-        self.optimizer = optim.Adam(self.om.parameters(), lr=0.03)
-        self.epochs = 3
+        self.optimizer = optim.Adam(self.om.parameters(), lr=0.003)
+        self.epochs = 6
 
     def train(self):
         self.om.share_memory()
@@ -369,7 +371,7 @@ class TrainOm:
             el = 0
             dte = []
             for data in self.datasets:
-                loader = DataLoader(data, batch_size=128, shuffle=True)
+                loader = DataLoader(data, batch_size=256, shuffle=True)
                 ft1 = list(map(lambda x: self.split_map[x], data.ents1))
                 ft2 = list(map(lambda x: self.split_map[x], data.ents2))
 
@@ -479,8 +481,9 @@ class Matcher(Step):
             entsv = list(map(lambda x: (x[0], x[1], wm1[x[0]], wm2[x[1]]), ents))
 
             res = [[] for r in self.rang]
+            # res = [[]]
             meta = []
-            loader = DataLoader(entsv, batch_size=16)
+            loader = DataLoader(entsv, batch_size=256)
             for i, (x1, x2, e1, e2) in enumerate(loader):
 
                 nemb1 = self.om.gnn_pass(ft1, adj1, pdj1, i1)
@@ -495,12 +498,14 @@ class Matcher(Step):
                 for w in range(len(x1)):
                     meta.append((x1[w], x2[w], s[w]))
 
-            # mt = max(map(lambda x: x[2], meta))
-            # mt -= 0.01
+            mt = max(map(lambda x: x[2], meta))
+            print(mt)
+            mt -= 0.05
 
             for q1, q2, s in meta:
                 for i in range(len(self.rang)):
                     res[i].append(match_format(dataset, q1, q2, 1 if s > self.rang[i] else 0))
+                # res[0].append(match_format(dataset, q1, q2, 1 if s > mt else 0))
 
         return res, {'vc1': vc1c, 'vc2': vc2c}
 
@@ -538,13 +543,51 @@ if __name__ == '__main__':
         raise Exception(f'base ontologies not found in {base}conference')
     refs = list(onts(base + 'conference', base + 'reference'))
 
-    kf = KFold(n_splits=3)
+    # kf = KFold(n_splits=3)
+    #
+    # processes = []
+    # for ki, (tri, tei) in enumerate(kf.split(refs)):
+    #     p = Process(target=train_kf, args=(ki, tri, tei, base))
+    #     p.start()
+    #     processes.append(p)
+    #
+    # for p in processes:
+    #     p.join()
+    #
+    # results = []
+    #
+    # for p, d, files in os.walk('/home/guilherme/Downloads/results/rs_1'):
+    #     files.sort()
+    #     for file in files:
+    #         results.append(pd.read_csv('/home/guilherme/Downloads/results/rs_1/' + file))
 
-    processes = []
-    for ki, (tri, tei) in enumerate(kf.split(refs)):
-        p = Process(target=train_kf, args=(ki, tri, tei, base))
-        p.start()
-        processes.append(p)
 
-    for p in processes:
-        p.join()
+    # rang = np.arange(0.1, 1, 0.01)
+    # eval_result(results, rang)
+
+
+    data1 = MatchDataset(base + 'reference/cmt-conference.rdf', base + 'conference/cmt.owl', base + 'conference/Conference.owl', tb=800)
+    data2 = MatchDataset(base + 'reference/conference-confOf.rdf', base + 'conference/Conference.owl', base + 'conference/confOf.owl', tb=800)
+    data3 = MatchDataset(base + 'reference/confOf-edas.rdf', base + 'conference/confOf.owl', base + 'conference/edas.owl', tb=800)
+    data4 = MatchDataset(base + 'reference/edas-ekaw.rdf', base + 'conference/edas.owl', base + 'conference/ekaw.owl', tb=800)
+    data5 = MatchDataset(base + 'reference/ekaw-sigkdd.rdf', base + 'conference/ekaw.owl', base + 'conference/sigkdd.owl', tb=800)
+    data6 = MatchDataset(base + 'reference/iasted-sigkdd.rdf', base + 'conference/iasted.owl', base + 'conference/sigkdd.owl', tb=800)
+
+    datasets = [data1, data2, data3, data4, data5, data6]
+
+    tr = TrainOm(datasets)
+    tr.train()
+    # tr.om.load_state_dict(torch.load('model.pt'))
+    # tr.wm.load('wm.d')
+
+    tr.om.eval()
+    rang = np.arange(0.0, 1, 0.01)
+
+    matcher = Matcher(tr.om, tr.wm, rang)
+
+    runner = Runner(base + 'conference', base + 'reference', matcher=matcher)
+
+    for i in range(1):
+
+        result = runner.run(parallel=False)
+        eval_result(result, rang)

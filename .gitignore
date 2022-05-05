@@ -1,2 +1,8 @@
 venv/
 .idea/
+conference.zip
+conference
+dts2-cache.bin
+glove.42B.300d.txt
+glove.42B.300d.zip
+gnn-0.pt
